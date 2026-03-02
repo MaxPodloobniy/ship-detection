@@ -8,8 +8,24 @@ Usage:
 """
 
 import argparse
-import sys
 from pathlib import Path
+
+from src.inference.predictor import ShipPredictor
+
+
+def _resolve_device(accelerator: str) -> str:
+    """Map CLI accelerator choice to a torch device string."""
+    if accelerator == "auto":
+        import torch
+
+        if torch.cuda.is_available():
+            return "cuda"
+        if torch.backends.mps.is_available():
+            return "mps"
+        return "cpu"
+    if accelerator == "gpu":
+        return "cuda"
+    return accelerator
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -23,12 +39,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=Path,
         required=True,
         help="Path to the trained Lightning checkpoint (.ckpt)",
-    )
-    parser.add_argument(
-        "--model-name",
-        type=str,
-        default="nvidia/segformer-b0-finetuned-ade-512-512",
-        help="HuggingFace model identifier (must match the trained model)",
     )
 
     # ── I/O ───────────────────────────────────────────────────────────
@@ -75,12 +85,36 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
 
-    # TODO: load model from checkpoint
-    # TODO: build inference dataset & data-loader
-    # TODO: run prediction loop
-    # TODO: post-process masks (threshold, RLE encode)
-    # TODO: save submission CSV / mask images
-    raise NotImplementedError("Inference pipeline is not yet implemented")
+    device = _resolve_device(args.accelerator)
+
+    predictor = ShipPredictor(
+        checkpoint_path=args.checkpoint,
+        device=device,
+        threshold=args.threshold,
+    )
+
+    args.output.mkdir(parents=True, exist_ok=True)
+
+    # ── submission CSV ────────────────────────────────────────────────
+    submission = predictor.generate_submission(
+        image_dir=args.input,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+    )
+    csv_path = args.output / args.submission_file
+    submission.to_csv(csv_path, index=False)
+    print(f"Submission saved to {csv_path} ({len(submission)} images)")
+
+    # ── optional mask PNGs ────────────────────────────────────────────
+    if args.save_masks:
+        mask_dir = args.output / "masks"
+        predictor.save_masks(
+            image_dir=args.input,
+            output_dir=mask_dir,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+        )
+        print(f"Masks saved to {mask_dir}")
 
 
 if __name__ == "__main__":
