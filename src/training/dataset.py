@@ -1,42 +1,47 @@
 from pathlib import Path
 
+import albumentations as A
+import cv2
 import lightning
 import numpy as np
 import pandas as pd
 import torch
-from PIL import Image
+from albumentations.pytorch import ToTensorV2
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset
 
 from src.utils import rle_decode
 
-# ImageNet statistics used by SegFormer pretrained weights
-IMAGENET_MEAN = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
-IMAGENET_STD = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD = [0.229, 0.224, 0.225]
 
 
 class ShipDataset(Dataset):
-    """Kaggle Airbus Ship Detection dataset.
-
-    Expects a *pre-grouped* DataFrame where each row has:
-    - ``ImageId``: filename inside *image_dir*
-    - ``EncodedPixels``: **list** of RLE strings (may contain NaN entries)
-
-    Args:
-        image_dir: Directory with JPEG images.
-        df: Pre-grouped DataFrame (one row per image).
-        image_size: Spatial size to resize images and masks to.
-    """
-
     def __init__(
         self,
         image_dir: Path,
         df: pd.DataFrame,
-        image_size: int = 512,
+        image_size: int = 768,
+        is_train: bool = False,
     ) -> None:
         self.image_dir = Path(image_dir)
         self.df = df.reset_index(drop=True)
         self.image_size = image_size
+
+        transforms_list = [A.Resize(height=self.image_size, width=self.image_size)]
+
+        if is_train:
+            transforms_list.extend([
+                A.HorizontalFlip(p=0.5),
+                A.VerticalFlip(p=0.5),
+            ])
+
+        transforms_list.extend([
+            A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD, max_pixel_value=255.0),
+            ToTensorV2(),
+        ])
+
+        self.transform = A.Compose(transforms_list)
 
     def __len__(self) -> int:
         return len(self.df)
@@ -46,20 +51,16 @@ class ShipDataset(Dataset):
         image_id = row["ImageId"]
         rle_list = row["EncodedPixels"]
 
-        # ── image ─────────────────────────────────────────────────────
-        img = Image.open(self.image_dir / image_id).convert("RGB")
-        img = img.resize((self.image_size, self.image_size), Image.BILINEAR)
-        img_tensor = torch.from_numpy(np.array(img)).permute(2, 0, 1).float() / 255.0
-        img_tensor = (img_tensor - IMAGENET_MEAN) / IMAGENET_STD
+        img = cv2.imread(str(self.image_dir / image_id))
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        # ── mask ──────────────────────────────────────────────────────
         mask = np.zeros((768, 768), dtype=np.uint8)
         for rle in rle_list:
             mask = np.maximum(mask, rle_decode(rle, shape=(768, 768)))
 
-        mask_pil = Image.fromarray(mask)
-        mask_pil = mask_pil.resize((self.image_size, self.image_size), Image.NEAREST)
-        mask_tensor = torch.from_numpy(np.array(mask_pil)).unsqueeze(0).float()
+        augmented = self.transform(image=img, mask=mask)
+        img_tensor = augmented["image"]
+        mask_tensor = augmented["mask"].unsqueeze(0).float()
 
         return {"pixel_values": img_tensor, "mask": mask_tensor}
 
@@ -76,7 +77,8 @@ class ShipDataModule(lightning.LightningDataModule):
         num_workers: DataLoader worker count.
         image_size: Spatial size passed to :class:`ShipDataset`.
         val_split: Fraction of data reserved for validation.
-        seed: Random seed for the train/val split.
+        negative_ratio: Fraction of ship-free images to keep (0.0–1.0).
+        seed: Random seed for the train/val split and downsampling.
     """
 
     def __init__(
@@ -84,8 +86,9 @@ class ShipDataModule(lightning.LightningDataModule):
         data_dir: Path,
         batch_size: int = 16,
         num_workers: int = 4,
-        image_size: int = 512,
+        image_size: int = 768,
         val_split: float = 0.1,
+        negative_ratio: float = 1.0,
         seed: int = 42,
     ) -> None:
         super().__init__()
@@ -94,6 +97,7 @@ class ShipDataModule(lightning.LightningDataModule):
         self.num_workers = num_workers
         self.image_size = image_size
         self.val_split = val_split
+        self.negative_ratio = negative_ratio
         self.seed = seed
 
     def setup(self, stage: str | None = None) -> None:
@@ -106,6 +110,17 @@ class ShipDataModule(lightning.LightningDataModule):
             .reset_index()
         )
 
+        # ── negative-class downsampling ───────────────────────────────
+        if self.negative_ratio < 1.0:
+            has_ship = grouped["EncodedPixels"].apply(
+                lambda rles: any(isinstance(r, str) for r in rles)
+            )
+            positives = grouped[has_ship]
+            negatives = grouped[~has_ship].sample(
+                frac=self.negative_ratio, random_state=self.seed
+            )
+            grouped = pd.concat([positives, negatives], ignore_index=True)
+
         train_df, val_df = train_test_split(
             grouped,
             test_size=self.val_split,
@@ -113,7 +128,7 @@ class ShipDataModule(lightning.LightningDataModule):
         )
 
         image_dir = self.data_dir / "train_v2"
-        self.train_dataset = ShipDataset(image_dir, train_df, self.image_size)
+        self.train_dataset = ShipDataset(image_dir, train_df, self.image_size, is_train=True)
         self.val_dataset = ShipDataset(image_dir, val_df, self.image_size)
 
     def train_dataloader(self) -> DataLoader:
@@ -124,6 +139,7 @@ class ShipDataModule(lightning.LightningDataModule):
             num_workers=self.num_workers,
             pin_memory=True,
             drop_last=True,
+            persistent_workers=True,
         )
 
     def val_dataloader(self) -> DataLoader:
