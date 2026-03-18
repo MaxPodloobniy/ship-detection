@@ -60,6 +60,7 @@ class BCEDiceLoss(nn.Module):
         self.register_buffer("pos_weight", pw)
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        assert isinstance(self.pos_weight, torch.Tensor)
         bce = F.binary_cross_entropy_with_logits(
             logits,
             targets.float(),

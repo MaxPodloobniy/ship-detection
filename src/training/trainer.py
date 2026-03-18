@@ -1,5 +1,6 @@
 import lightning
 import torch
+from lightning.pytorch.utilities.types import OptimizerLRSchedulerConfig
 import torch.nn.functional as F
 from transformers import SegformerForSemanticSegmentation
 
@@ -80,12 +81,12 @@ class ShipSegmentationModule(lightning.LightningModule):
     def validation_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         return self._shared_step(batch, "val")
 
-    def configure_optimizers(self) -> dict:
+    def configure_optimizers(self) -> OptimizerLRSchedulerConfig:
         optimizer = torch.optim.AdamW(
-            self.parameters(), lr=self.hparams.lr, weight_decay=0.01
+            self.parameters(), lr=self.hparams["lr"], weight_decay=0.01
         )
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=self.trainer.max_epochs
+            optimizer, T_max=self.trainer.max_epochs or 10
         )
         return {
             "optimizer": optimizer,

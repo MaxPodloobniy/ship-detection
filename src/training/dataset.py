@@ -12,8 +12,8 @@ from torch.utils.data import DataLoader, Dataset
 
 from src.utils import rle_decode
 
-IMAGENET_MEAN = [0.485, 0.456, 0.406]
-IMAGENET_STD = [0.229, 0.224, 0.225]
+IMAGENET_MEAN = (0.485, 0.456, 0.406)
+IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
 class ShipDataset(Dataset):
@@ -52,6 +52,7 @@ class ShipDataset(Dataset):
         rle_list = row["EncodedPixels"]
 
         img = cv2.imread(str(self.image_dir / image_id))
+        assert img is not None, f"Failed to load image: {image_id}"
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         mask = np.zeros((768, 768), dtype=np.uint8)

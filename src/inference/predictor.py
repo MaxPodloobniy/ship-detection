@@ -20,7 +20,7 @@ class InferenceImageDataset(Dataset):
         image_size: Spatial size to resize images to.
     """
 
-    def __init__(self, image_dir: Path, image_size: int = 512) -> None:
+    def __init__(self, image_dir: Path, image_size: int = 768) -> None:
         self.image_dir = Path(image_dir)
         self.image_paths = sorted(
             p for p in self.image_dir.iterdir()
@@ -34,9 +34,9 @@ class InferenceImageDataset(Dataset):
     def __getitem__(self, idx: int) -> dict[str, str | torch.Tensor]:
         path = self.image_paths[idx]
         img = Image.open(path).convert("RGB")
-        img = img.resize((self.image_size, self.image_size), Image.BILINEAR)
+        img = img.resize((self.image_size, self.image_size), Image.Resampling.BILINEAR)
         img_tensor = torch.from_numpy(np.array(img)).permute(2, 0, 1).float() / 255.0
-        img_tensor = (img_tensor - IMAGENET_MEAN) / IMAGENET_STD
+        img_tensor = (img_tensor - torch.tensor(IMAGENET_MEAN).view(3, 1, 1)) / torch.tensor(IMAGENET_STD).view(3, 1, 1)
         return {"pixel_values": img_tensor, "image_id": path.name}
 
 
@@ -55,7 +55,7 @@ class ShipPredictor:
         checkpoint_path: Path,
         device: str = "cpu",
         threshold: float = 0.5,
-        image_size: int = 512,
+        image_size: int = 768,
     ) -> None:
         self.device = torch.device(device)
         self.threshold = threshold
@@ -130,7 +130,7 @@ class ShipPredictor:
                 rle = rle_encode(mask_np)
                 rows.append({
                     "ImageId": image_id,
-                    "EncodedPixels": rle if rle else np.nan,
+                    "EncodedPixels": rle if rle else "",
                 })
 
         return pd.DataFrame(rows, columns=["ImageId", "EncodedPixels"])
