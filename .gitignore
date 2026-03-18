@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+*.manifest
+*.spec
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# Distribution / packaging
+*.tar.gz
+*.whl
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# PyCharm / JetBrains
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data / Models
+*.h5
+*.hdf5
+*.pkl
+*.pt
+*.pth
+*.onnx
+*.weights
+
+# Logs
+*.log
+logs/
+
+# Datasets (uncomment if needed)
+# data/
