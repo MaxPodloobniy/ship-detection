@@ -73,8 +73,8 @@ def rle_encode(mask: np.ndarray) -> str:
     lengths = ends - (starts - 1)
 
     tokens = []
-    for s, l in zip(starts, lengths):
-        tokens.append(str(s))
-        tokens.append(str(l))
+    for start, length in zip(starts, lengths):
+        tokens.append(str(start))
+        tokens.append(str(length))
 
     return " ".join(tokens)
