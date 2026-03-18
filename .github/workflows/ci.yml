@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Check code style
+        run: ruff check src/ tests/ entrypoint/
+
+      - name: Check formatting
+        run: ruff format --check src/ tests/ entrypoint/
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install mypy
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install lightning transformers albumentations opencv-python-headless pandas numpy scikit-learn Pillow
+
+      - name: Run type check
+        run: mypy src/ entrypoint/ --ignore-missing-imports
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install lightning transformers albumentations opencv-python-headless pandas numpy scikit-learn Pillow
+          pip install pytest
+
+      - name: Run tests
+        run: PYTHONPATH=. pytest tests/ -v
