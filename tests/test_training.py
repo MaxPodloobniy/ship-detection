@@ -76,7 +76,8 @@ class TestShipDataset:
 class TestShipSegmentationModule:
     def test_forward_shape(self):
         model = ShipSegmentationModule(
-            model_name="nvidia/segformer-b0-finetuned-ade-512-512", lr=1e-4,
+            model_name="nvidia/segformer-b0-finetuned-ade-512-512",
+            lr=1e-4,
         )
         model.eval()
         with torch.no_grad():
@@ -85,7 +86,8 @@ class TestShipSegmentationModule:
 
     def test_training_step_returns_scalar_loss(self):
         model = ShipSegmentationModule(
-            model_name="nvidia/segformer-b0-finetuned-ade-512-512", lr=1e-4,
+            model_name="nvidia/segformer-b0-finetuned-ade-512-512",
+            lr=1e-4,
         )
         batch = {
             "pixel_values": torch.randn(2, 3, 768, 768),
@@ -110,7 +112,9 @@ class TestNegativeDownsampling:
                 rows.append({"ImageId": f"img{i}.jpg", "EncodedPixels": np.nan})
         pd.DataFrame(rows).to_csv(csv_path, index=False)
 
-        dm = ShipDataModule(data_dir=tmp_path, negative_ratio=0.25, val_split=0.0001, seed=42)
+        dm = ShipDataModule(
+            data_dir=tmp_path, negative_ratio=0.25, val_split=0.0001, seed=42
+        )
         dm.setup()
 
         total = len(dm.train_dataset) + len(dm.val_dataset)

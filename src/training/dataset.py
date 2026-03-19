@@ -31,15 +31,21 @@ class ShipDataset(Dataset):
         transforms_list = [A.Resize(height=self.image_size, width=self.image_size)]
 
         if is_train:
-            transforms_list.extend([
-                A.HorizontalFlip(p=0.5),
-                A.VerticalFlip(p=0.5),
-            ])
+            transforms_list.extend(
+                [
+                    A.HorizontalFlip(p=0.5),
+                    A.VerticalFlip(p=0.5),
+                ]
+            )
 
-        transforms_list.extend([
-            A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD, max_pixel_value=255.0),
-            ToTensorV2(),
-        ])
+        transforms_list.extend(
+            [
+                A.Normalize(
+                    mean=IMAGENET_MEAN, std=IMAGENET_STD, max_pixel_value=255.0
+                ),
+                ToTensorV2(),
+            ]
+        )
 
         self.transform = A.Compose(transforms_list)
 
@@ -105,11 +111,7 @@ class ShipDataModule(lightning.LightningDataModule):
         csv_path = self.data_dir / "train_ship_segmentations_v2.csv"
         df = pd.read_csv(csv_path)
 
-        grouped = (
-            df.groupby("ImageId")["EncodedPixels"]
-            .apply(list)
-            .reset_index()
-        )
+        grouped = df.groupby("ImageId")["EncodedPixels"].apply(list).reset_index()
 
         # ── negative-class downsampling ───────────────────────────────
         if self.negative_ratio < 1.0:
@@ -129,7 +131,9 @@ class ShipDataModule(lightning.LightningDataModule):
         )
 
         image_dir = self.data_dir / "train_v2"
-        self.train_dataset = ShipDataset(image_dir, train_df, self.image_size, is_train=True)
+        self.train_dataset = ShipDataset(
+            image_dir, train_df, self.image_size, is_train=True
+        )
         self.val_dataset = ShipDataset(image_dir, val_df, self.image_size)
 
     def train_dataloader(self) -> DataLoader:

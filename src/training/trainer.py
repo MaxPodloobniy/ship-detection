@@ -48,9 +48,7 @@ class ShipSegmentationModule(lightning.LightningModule):
         """Return raw logits of shape ``(B, 1, H/4, W/4)``."""
         return self.model(pixel_values=pixel_values).logits
 
-    def _shared_step(
-        self, batch: dict[str, torch.Tensor], stage: str
-    ) -> torch.Tensor:
+    def _shared_step(self, batch: dict[str, torch.Tensor], stage: str) -> torch.Tensor:
         pixel_values = batch["pixel_values"]
         masks = batch["mask"]
 
@@ -70,15 +68,25 @@ class ShipSegmentationModule(lightning.LightningModule):
             union = preds.sum() + masks.sum() - intersection
             iou = (intersection + 1e-6) / (union + 1e-6)
 
-        self.log(f"{stage}_loss", loss, prog_bar=True, on_epoch=True, on_step=(stage == "train"))
+        self.log(
+            f"{stage}_loss",
+            loss,
+            prog_bar=True,
+            on_epoch=True,
+            on_step=(stage == "train"),
+        )
         self.log(f"{stage}_iou", iou, prog_bar=True, on_epoch=True, on_step=False)
 
         return loss
 
-    def training_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def training_step(
+        self, batch: dict[str, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor:
         return self._shared_step(batch, "train")
 
-    def validation_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def validation_step(
+        self, batch: dict[str, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor:
         return self._shared_step(batch, "val")
 
     def configure_optimizers(self) -> OptimizerLRSchedulerConfig:

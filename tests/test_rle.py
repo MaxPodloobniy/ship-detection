@@ -6,6 +6,7 @@ from src.utils import rle_decode, rle_encode
 
 # ── decode ────────────────────────────────────────────────────────────
 
+
 class TestRleDecode:
     def test_empty_string_returns_zeros(self):
         mask = rle_decode("")
@@ -63,6 +64,7 @@ class TestRleDecode:
 
 # ── encode ────────────────────────────────────────────────────────────
 
+
 class TestRleEncode:
     def test_empty_mask_returns_empty_string(self):
         mask = np.zeros((768, 768), dtype=np.uint8)
@@ -95,6 +97,7 @@ class TestRleEncode:
 
 
 # ── roundtrip ─────────────────────────────────────────────────────────
+
 
 class TestRoundtrip:
     def test_encode_then_decode(self):

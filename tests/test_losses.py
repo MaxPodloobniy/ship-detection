@@ -6,12 +6,14 @@ from src.training.losses import DiceLoss, BCEDiceLoss
 
 # ── helpers ───────────────────────────────────────────────────────────
 
+
 def _logits(prob: float, shape: tuple = (2, 1, 8, 8)) -> torch.Tensor:
     """Create a constant logit tensor that maps to *prob* after sigmoid."""
     return torch.full(shape, torch.logit(torch.tensor(prob)).item())
 
 
 # ── DiceLoss ──────────────────────────────────────────────────────────
+
 
 class TestDiceLoss:
     def test_perfect_prediction_loss_near_zero(self):
@@ -73,6 +75,7 @@ class TestDiceLoss:
 
 # ── BCEDiceLoss ───────────────────────────────────────────────────────
 
+
 class TestBCEDiceLoss:
     def test_perfect_prediction_low_loss(self):
         targets = torch.ones(2, 1, 8, 8)
@@ -125,9 +128,7 @@ class TestBCEDiceLoss:
         targets = (torch.rand(4, 1, 8, 8) > 0.5).float()
 
         combined = BCEDiceLoss(bce_weight=1.0, dice_weight=0.0)(logits, targets)
-        bce_only = torch.nn.functional.binary_cross_entropy_with_logits(
-            logits, targets
-        )
+        bce_only = torch.nn.functional.binary_cross_entropy_with_logits(logits, targets)
 
         assert combined.item() == pytest.approx(bce_only.item(), abs=1e-6)
 
