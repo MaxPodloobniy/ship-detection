@@ -1,63 +1,70 @@
 import lightning
+import segmentation_models_pytorch as smp
 import torch
 from lightning.pytorch.utilities.types import OptimizerLRSchedulerConfig
-import torch.nn.functional as F
-from transformers import SegformerForSemanticSegmentation
 
-from src.training.losses import BCEDiceLoss
+from src.training.losses import BCEDiceLoss, BCELovaszLoss
 
 
 class ShipSegmentationModule(lightning.LightningModule):
-    """PyTorch Lightning module for binary ship segmentation with SegFormer.
-
-    Loads a pretrained SegFormer encoder and replaces the decode head
-    for single-class (ship / no-ship) output.
+    """PyTorch Lightning module for binary ship segmentation with FPN.
 
     Args:
-        model_name: HuggingFace model identifier for SegFormer.
+        encoder_name: Encoder backbone name (timm-compatible).
+        encoder_weights: Pretrained weights identifier or ``None``.
         lr: Learning rate for AdamW.
         bce_weight: Weight for the BCE component of the loss.
         dice_weight: Weight for the Dice component of the loss.
+        lovasz_weight: Weight for the Lovász component of the loss.
         pos_weight: Optional positive-class weight for BCE (class imbalance).
+        loss_type: Loss function to use (``"bce_dice"`` or ``"bce_lovasz"``).
+        scheduler_type: LR scheduler (``"plateau"`` or ``"cosine"``).
     """
 
     def __init__(
         self,
-        model_name: str = "nvidia/segformer-b1-finetuned-ade-512-512",
+        encoder_name: str = "resnet34",
+        encoder_weights: str | None = "imagenet",
         lr: float = 1e-4,
         bce_weight: float = 1.0,
         dice_weight: float = 1.0,
+        lovasz_weight: float = 0.5,
         pos_weight: float | None = None,
+        loss_type: str = "bce_dice",
+        scheduler_type: str = "plateau",
     ) -> None:
         super().__init__()
         self.save_hyperparameters()
 
-        self.model = SegformerForSemanticSegmentation.from_pretrained(
-            model_name,
-            num_labels=1,
-            ignore_mismatched_sizes=True,
+        self.model = smp.FPN(
+            encoder_name=encoder_name,
+            encoder_weights=encoder_weights,
+            in_channels=3,
+            classes=1,
         )
 
-        self.criterion = BCEDiceLoss(
-            bce_weight=bce_weight,
-            dice_weight=dice_weight,
-            pos_weight=pos_weight,
-        )
+        if loss_type == "bce_lovasz":
+            self.criterion = BCELovaszLoss(
+                bce_weight=bce_weight,
+                lovasz_weight=lovasz_weight,
+                pos_weight=pos_weight,
+            )
+        else:
+            self.criterion = BCEDiceLoss(
+                bce_weight=bce_weight,
+                dice_weight=dice_weight,
+                pos_weight=pos_weight,
+            )
 
-    def forward(self, pixel_values: torch.Tensor) -> torch.Tensor:
-        """Return raw logits of shape ``(B, 1, H/4, W/4)``."""
-        return self.model(pixel_values=pixel_values).logits
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Return raw logits of shape ``(B, 1, H, W)``."""
+        return self.model(x)
 
     def _shared_step(self, batch: dict[str, torch.Tensor], stage: str) -> torch.Tensor:
         pixel_values = batch["pixel_values"]
         masks = batch["mask"]
 
         logits = self.forward(pixel_values)
-
-        # SegFormer outputs at 1/4 resolution — upsample to target size
-        logits = F.interpolate(
-            logits, size=masks.shape[-2:], mode="bilinear", align_corners=False
-        )
 
         loss = self.criterion(logits, masks)
 
@@ -93,10 +100,26 @@ class ShipSegmentationModule(lightning.LightningModule):
         optimizer = torch.optim.AdamW(
             self.parameters(), lr=self.hparams["lr"], weight_decay=0.01
         )
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=self.trainer.max_epochs or 10
+
+        scheduler_type = self.hparams.get("scheduler_type", "plateau")
+
+        if scheduler_type == "cosine":
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer, T_max=self.trainer.max_epochs or 10
+            )
+            return {
+                "optimizer": optimizer,
+                "lr_scheduler": {"scheduler": scheduler, "interval": "epoch"},
+            }
+
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode="min", factor=0.5, patience=2, min_lr=1e-6
         )
         return {
             "optimizer": optimizer,
-            "lr_scheduler": {"scheduler": scheduler, "interval": "epoch"},
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "interval": "epoch",
+                "monitor": "val_loss",
+            },
         }

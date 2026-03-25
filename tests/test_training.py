@@ -75,23 +75,17 @@ class TestShipDataset:
 
 class TestShipSegmentationModule:
     def test_forward_shape(self):
-        model = ShipSegmentationModule(
-            model_name="nvidia/segformer-b0-finetuned-ade-512-512",
-            lr=1e-4,
-        )
+        model = ShipSegmentationModule(encoder_name="resnet34", lr=1e-4)
         model.eval()
         with torch.no_grad():
-            logits = model(torch.randn(2, 3, 768, 768))
-        assert logits.shape == (2, 1, 192, 192)
+            logits = model(torch.randn(2, 3, 256, 256))
+        assert logits.shape == (2, 1, 256, 256)
 
     def test_training_step_returns_scalar_loss(self):
-        model = ShipSegmentationModule(
-            model_name="nvidia/segformer-b0-finetuned-ade-512-512",
-            lr=1e-4,
-        )
+        model = ShipSegmentationModule(encoder_name="resnet34", lr=1e-4)
         batch = {
-            "pixel_values": torch.randn(2, 3, 768, 768),
-            "mask": torch.ones(2, 1, 768, 768),
+            "pixel_values": torch.randn(2, 3, 256, 256),
+            "mask": torch.ones(2, 1, 256, 256),
         }
         loss = model._shared_step(batch, "train")
         assert loss.dim() == 0 and loss.item() > 0 and loss.requires_grad
