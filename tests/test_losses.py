@@ -1,7 +1,7 @@
 import torch
 import pytest
 
-from src.training.losses import DiceLoss, BCEDiceLoss
+from src.training.losses import BCEDiceLoss, BCELovaszLoss, DiceLoss, LovaszLoss
 
 
 # ── helpers ───────────────────────────────────────────────────────────
@@ -157,5 +157,114 @@ class TestBCEDiceLoss:
         logits = torch.randn(1, 1, 32, 32)
         targets = (torch.rand(1, 1, 32, 32) > 0.5).float()
         loss = BCEDiceLoss()(logits, targets)
+        assert loss.dim() == 0
+        assert loss.item() >= 0.0
+
+
+# ── LovaszLoss ───────────────────────────────────────────────────────
+
+
+class TestLovaszLoss:
+    def test_perfect_prediction_loss_near_zero(self):
+        targets = torch.ones(2, 1, 8, 8)
+        logits = _logits(0.99)
+        loss = LovaszLoss()(logits, targets)
+        assert loss.item() < 0.05
+
+    def test_worst_prediction_loss_high(self):
+        targets = torch.ones(2, 1, 8, 8)
+        logits = _logits(0.01)
+        loss = LovaszLoss()(logits, targets)
+        assert loss.item() > 0.5
+
+    def test_output_is_scalar(self):
+        loss = LovaszLoss()(torch.randn(4, 1, 8, 8), torch.ones(4, 1, 8, 8))
+        assert loss.dim() == 0
+
+    def test_loss_non_negative(self):
+        loss = LovaszLoss()(torch.randn(4, 1, 16, 16), torch.ones(4, 1, 16, 16))
+        assert loss.item() >= 0.0
+
+    def test_gradient_flows(self):
+        logits = torch.randn(2, 1, 8, 8, requires_grad=True)
+        targets = torch.ones(2, 1, 8, 8)
+        loss = LovaszLoss()(logits, targets)
+        loss.backward()
+        assert logits.grad is not None
+        assert not torch.all(logits.grad == 0)
+
+    def test_batch_size_one(self):
+        logits = torch.randn(1, 1, 32, 32)
+        targets = (torch.rand(1, 1, 32, 32) > 0.5).float()
+        loss = LovaszLoss()(logits, targets)
+        assert loss.dim() == 0
+        assert loss.item() >= 0.0
+
+
+# ── BCELovaszLoss ────────────────────────────────────────────────────
+
+
+class TestBCELovaszLoss:
+    def test_perfect_prediction_low_loss(self):
+        targets = torch.ones(2, 1, 8, 8)
+        logits = _logits(0.99)
+        loss = BCELovaszLoss()(logits, targets)
+        assert loss.item() < 0.1
+
+    def test_output_is_scalar(self):
+        loss = BCELovaszLoss()(torch.randn(4, 1, 8, 8), torch.ones(4, 1, 8, 8))
+        assert loss.dim() == 0
+
+    def test_loss_non_negative(self):
+        loss = BCELovaszLoss()(torch.randn(4, 1, 16, 16), torch.ones(4, 1, 16, 16))
+        assert loss.item() >= 0.0
+
+    def test_gradient_flows(self):
+        logits = torch.randn(2, 1, 8, 8, requires_grad=True)
+        targets = torch.ones(2, 1, 8, 8)
+        loss = BCELovaszLoss()(logits, targets)
+        loss.backward()
+        assert logits.grad is not None
+        assert not torch.all(logits.grad == 0)
+
+    def test_weights_affect_loss(self):
+        logits = torch.randn(2, 1, 8, 8)
+        targets = torch.ones(2, 1, 8, 8)
+
+        loss_equal = BCELovaszLoss(bce_weight=0.5, lovasz_weight=0.5)(logits, targets)
+        loss_bce_heavy = BCELovaszLoss(bce_weight=5.0, lovasz_weight=0.1)(logits, targets)
+        loss_lovasz_heavy = BCELovaszLoss(bce_weight=0.1, lovasz_weight=5.0)(logits, targets)
+
+        assert loss_equal.item() != pytest.approx(loss_bce_heavy.item(), abs=1e-4)
+        assert loss_equal.item() != pytest.approx(loss_lovasz_heavy.item(), abs=1e-4)
+
+    def test_zero_bce_weight_equals_lovasz_only(self):
+        torch.manual_seed(0)
+        logits = torch.randn(4, 1, 8, 8)
+        targets = (torch.rand(4, 1, 8, 8) > 0.5).float()
+
+        combined = BCELovaszLoss(bce_weight=0.0, lovasz_weight=1.0)(logits, targets)
+        lovasz_only = LovaszLoss()(logits, targets)
+
+        assert combined.item() == pytest.approx(lovasz_only.item(), abs=1e-6)
+
+    def test_pos_weight(self):
+        logits = _logits(0.3)
+        targets = torch.ones(2, 1, 8, 8)
+
+        loss_no_pw = BCELovaszLoss(pos_weight=None)(logits, targets)
+        loss_high_pw = BCELovaszLoss(pos_weight=5.0)(logits, targets)
+
+        assert loss_high_pw.item() > loss_no_pw.item()
+
+    def test_default_weights(self):
+        criterion = BCELovaszLoss()
+        assert criterion.bce_weight == 0.5
+        assert criterion.lovasz_weight == 0.5
+
+    def test_batch_size_one(self):
+        logits = torch.randn(1, 1, 32, 32)
+        targets = (torch.rand(1, 1, 32, 32) > 0.5).float()
+        loss = BCELovaszLoss()(logits, targets)
         assert loss.dim() == 0
         assert loss.item() >= 0.0
