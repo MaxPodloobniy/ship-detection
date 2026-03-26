@@ -30,7 +30,7 @@ def _resolve_device(accelerator: str) -> str:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run inference with a trained SegFormer ship-detection model",
+        description="Run inference with a trained FPN ship-detection model",
     )
 
     # ── model ─────────────────────────────────────────────────────────
@@ -39,6 +39,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=Path,
         required=True,
         help="Path to the trained Lightning checkpoint (.ckpt)",
+    )
+    parser.add_argument(
+        "--encoder-name",
+        type=str,
+        default="resnet34",
+        help="Encoder backbone used during training (default: resnet34)",
     )
 
     # ── I/O ───────────────────────────────────────────────────────────
@@ -60,10 +66,27 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument(
+        "--image-size",
+        type=int,
+        default=768,
+        help="Spatial resolution (must match the size the model was trained on)",
+    )
+    parser.add_argument(
         "--accelerator",
         type=str,
         default="auto",
         choices=["auto", "cpu", "gpu", "mps"],
+    )
+    parser.add_argument(
+        "--use-tta",
+        action="store_true",
+        help="Enable test-time augmentation (4 flip variants)",
+    )
+    parser.add_argument(
+        "--min-ship-pixels",
+        type=int,
+        default=10,
+        help="Minimum connected component size to count as a ship (default: 10)",
     )
 
     # ── output format ─────────────────────────────────────────────────
@@ -91,6 +114,10 @@ def main(argv: list[str] | None = None) -> None:
         checkpoint_path=args.checkpoint,
         device=device,
         threshold=args.threshold,
+        image_size=args.image_size,
+        encoder_name=args.encoder_name,
+        use_tta=args.use_tta,
+        min_ship_pixels=args.min_ship_pixels,
     )
 
     args.output.mkdir(parents=True, exist_ok=True)
@@ -103,7 +130,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     csv_path = args.output / args.submission_file
     submission.to_csv(csv_path, index=False)
-    print(f"Submission saved to {csv_path} ({len(submission)} images)")
+    print(f"Submission saved to {csv_path} ({len(submission)} rows)")
 
     # ── optional mask PNGs ────────────────────────────────────────────
     if args.save_masks:
