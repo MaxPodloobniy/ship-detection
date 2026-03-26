@@ -25,7 +25,7 @@ from src.training.trainer import ShipSegmentationModule
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Train SegFormer for Airbus Ship Detection",
+        description="Train FPN for Airbus Ship Detection",
     )
 
     # ── data ──────────────────────────────────────────────────────────
@@ -35,13 +35,31 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         required=True,
         help="Root directory containing train_v2/ images and train_ship_segmentations_v2.csv",
     )
+    parser.add_argument(
+        "--image-size",
+        type=int,
+        default=768,
+        help="Spatial resolution for images and masks (default: 768, native Kaggle size)",
+    )
+    parser.add_argument(
+        "--negative-ratio",
+        type=float,
+        default=1.0,
+        help="Fraction of ship-free images to keep (e.g. 0.1 to downsample negatives)",
+    )
 
     # ── model ─────────────────────────────────────────────────────────
     parser.add_argument(
-        "--model-name",
+        "--encoder-name",
         type=str,
-        default="nvidia/segformer-b1-finetuned-ade-512-512",
-        help="HuggingFace model identifier for SegFormer backbone",
+        default="resnet34",
+        help="Encoder backbone name (default: resnet34)",
+    )
+    parser.add_argument(
+        "--encoder-weights",
+        type=str,
+        default="imagenet",
+        help="Pretrained weights identifier (default: imagenet)",
     )
 
     # ── training hyper-parameters ─────────────────────────────────────
@@ -50,7 +68,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--bce-weight", type=float, default=1.0)
     parser.add_argument("--dice-weight", type=float, default=1.0)
+    parser.add_argument("--lovasz-weight", type=float, default=0.5)
     parser.add_argument("--pos-weight", type=float, default=None)
+    parser.add_argument(
+        "--loss-type",
+        type=str,
+        default="bce_dice",
+        choices=["bce_dice", "bce_lovasz"],
+        help="Loss function to use (default: bce_dice)",
+    )
+    parser.add_argument(
+        "--scheduler-type",
+        type=str,
+        default="plateau",
+        choices=["plateau", "cosine"],
+        help="LR scheduler type (default: plateau)",
+    )
 
     # ── hardware ──────────────────────────────────────────────────────
     parser.add_argument(
@@ -70,7 +103,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=Path("outputs"),
         help="Directory for checkpoints, logs, and artifacts",
     )
-    parser.add_argument("--experiment-name", type=str, default="ship_segformer")
+    parser.add_argument("--experiment-name", type=str, default="ship_fpn")
     parser.add_argument("--seed", type=int, default=42)
 
     return parser.parse_args(argv)
@@ -86,16 +119,22 @@ def main(argv: list[str] | None = None) -> None:
         data_dir=args.data_dir,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
+        image_size=args.image_size,
+        negative_ratio=args.negative_ratio,
         seed=args.seed,
     )
 
     # ── model ─────────────────────────────────────────────────────────
     model = ShipSegmentationModule(
-        model_name=args.model_name,
+        encoder_name=args.encoder_name,
+        encoder_weights=args.encoder_weights,
         lr=args.lr,
         bce_weight=args.bce_weight,
         dice_weight=args.dice_weight,
+        lovasz_weight=args.lovasz_weight,
         pos_weight=args.pos_weight,
+        loss_type=args.loss_type,
+        scheduler_type=args.scheduler_type,
     )
 
     # ── callbacks ─────────────────────────────────────────────────────
