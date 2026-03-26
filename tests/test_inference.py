@@ -1,19 +1,21 @@
 import lightning
+import numpy as np
 import pytest
 import torch
 from PIL import Image
 
-from src.inference.predictor import InferenceImageDataset, ShipPredictor
+from src.inference.predictor import (
+    InferenceImageDataset,
+    ShipPredictor,
+    mask_to_submission_rows,
+)
 from src.training.trainer import ShipSegmentationModule
 
 
 @pytest.fixture()
 def dummy_checkpoint(tmp_path):
     """Create a proper Lightning checkpoint via the Trainer."""
-    model = ShipSegmentationModule(
-        model_name="nvidia/segformer-b0-finetuned-ade-512-512",
-        lr=1e-4,
-    )
+    model = ShipSegmentationModule(encoder_name="resnet34", lr=1e-4)
     trainer = lightning.Trainer(
         max_epochs=1,
         logger=False,
@@ -42,12 +44,27 @@ class TestInferenceImageDataset:
 
 class TestShipPredictor:
     def test_predict_batch_shapes(self, dummy_checkpoint):
-        predictor = ShipPredictor(dummy_checkpoint, device="cpu", threshold=0.5)
+        predictor = ShipPredictor(
+            dummy_checkpoint, device="cpu", threshold=0.5, encoder_name="resnet34"
+        )
         probs, masks = predictor.predict_batch(torch.randn(2, 3, 768, 768))
 
         assert probs.shape == (2, 1, 768, 768)
         assert masks.shape == (2, 1, 768, 768)
         assert masks.dtype == torch.uint8
+
+    def test_tta_predict_shapes(self, dummy_checkpoint):
+        predictor = ShipPredictor(
+            dummy_checkpoint,
+            device="cpu",
+            threshold=0.5,
+            encoder_name="resnet34",
+            use_tta=True,
+        )
+        probs, masks = predictor.predict_batch(torch.randn(2, 3, 256, 256))
+
+        assert probs.shape == (2, 1, 256, 256)
+        assert masks.shape == (2, 1, 256, 256)
 
     def test_generate_submission(self, tmp_path, dummy_checkpoint):
         img_dir = tmp_path / "images"
@@ -55,8 +72,41 @@ class TestShipPredictor:
         for name in ["img1.jpg", "img2.jpg"]:
             Image.new("RGB", (768, 768)).save(img_dir / name)
 
-        predictor = ShipPredictor(dummy_checkpoint, device="cpu")
+        predictor = ShipPredictor(
+            dummy_checkpoint, device="cpu", encoder_name="resnet34"
+        )
         df = predictor.generate_submission(img_dir, batch_size=2, num_workers=0)
 
-        assert len(df) == 2
         assert list(df.columns) == ["ImageId", "EncodedPixels"]
+        assert set(df["ImageId"].unique()) == {"img1.jpg", "img2.jpg"}
+
+
+class TestMaskToSubmissionRows:
+    def test_empty_mask_returns_nan(self):
+        mask = np.zeros((768, 768), dtype=np.uint8)
+        rows = mask_to_submission_rows("test.jpg", mask)
+        assert len(rows) == 1
+        assert rows[0]["ImageId"] == "test.jpg"
+        assert np.isnan(rows[0]["EncodedPixels"])
+
+    def test_single_ship(self):
+        mask = np.zeros((768, 768), dtype=np.uint8)
+        mask[100:120, 200:220] = 1
+        rows = mask_to_submission_rows("test.jpg", mask)
+        assert len(rows) == 1
+        assert rows[0]["ImageId"] == "test.jpg"
+        assert isinstance(rows[0]["EncodedPixels"], str)
+
+    def test_two_ships(self):
+        mask = np.zeros((768, 768), dtype=np.uint8)
+        mask[100:120, 200:220] = 1
+        mask[400:420, 500:520] = 1
+        rows = mask_to_submission_rows("test.jpg", mask)
+        assert len(rows) == 2
+
+    def test_small_component_filtered(self):
+        mask = np.zeros((768, 768), dtype=np.uint8)
+        mask[100:102, 200:202] = 1  # 4 pixels
+        rows = mask_to_submission_rows("test.jpg", mask, min_pixels=10)
+        assert len(rows) == 1
+        assert np.isnan(rows[0]["EncodedPixels"])
