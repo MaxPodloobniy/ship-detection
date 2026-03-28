@@ -89,9 +89,13 @@ jobs:
           pip install huggingface_hub
           python -c "from huggingface_hub import hf_hub_download; hf_hub_download('${{ vars.HF_MODEL_REPO }}', 'model.onnx', local_dir='.')"
 
+      - name: Repo name lowercase
+        id: repo
+        run: echo "name=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository }}:latest,ghcr.io/${{ github.repository }}:${{ github.sha }}
+          tags: ghcr.io/${{ steps.repo.outputs.name }}:latest,ghcr.io/${{ steps.repo.outputs.name }}:${{ github.sha }}
