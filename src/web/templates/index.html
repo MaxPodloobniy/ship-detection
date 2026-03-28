@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ship Detection</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Ship Detection</h1>
+        <p class="subtitle">Upload a satellite image to detect ships</p>
+
+        <div class="upload-area" id="dropZone">
+            <p>Drag & drop an image here or</p>
+            <label class="file-label">
+                Choose file
+                <input type="file" id="fileInput" accept=".jpg,.jpeg,.png" hidden>
+            </label>
+            <p class="file-name" id="fileName"></p>
+        </div>
+
+        <button id="detectBtn" disabled>Detect Ships</button>
+
+        <div class="spinner" id="spinner" hidden>
+            <div class="spinner-circle"></div>
+            <p>Running inference...</p>
+        </div>
+
+        <div class="result" id="result" hidden>
+            <h2 id="resultText"></h2>
+            <img id="resultImage" alt="Detection result">
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileName = document.getElementById('fileName');
+        const detectBtn = document.getElementById('detectBtn');
+        const spinner = document.getElementById('spinner');
+        const result = document.getElementById('result');
+        const resultText = document.getElementById('resultText');
+        const resultImage = document.getElementById('resultImage');
+
+        let selectedFile = null;
+
+        function setFile(file) {
+            if (!file) return;
+            selectedFile = file;
+            fileName.textContent = file.name;
+            detectBtn.disabled = false;
+            result.hidden = true;
+        }
+
+        fileInput.addEventListener('change', () => setFile(fileInput.files[0]));
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            setFile(e.dataTransfer.files[0]);
+        });
+
+        detectBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            detectBtn.disabled = true;
+            spinner.hidden = false;
+            result.hidden = true;
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await response.json();
+
+                if (!response.ok) {
+                    resultText.textContent = data.error || 'Error';
+                    resultImage.hidden = true;
+                } else if (data.has_ships) {
+                    resultText.textContent = `Detected ${data.ship_count} ship${data.ship_count !== 1 ? 's' : ''}`;
+                    resultImage.src = 'data:image/png;base64,' + data.overlay;
+                    resultImage.hidden = false;
+                } else {
+                    resultText.textContent = 'No ships detected';
+                    resultImage.src = 'data:image/png;base64,' + data.overlay;
+                    resultImage.hidden = false;
+                }
+                result.hidden = false;
+            } catch (err) {
+                resultText.textContent = 'Request failed: ' + err.message;
+                resultImage.hidden = true;
+                result.hidden = false;
+            } finally {
+                spinner.hidden = true;
+                detectBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
