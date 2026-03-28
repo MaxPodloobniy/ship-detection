@@ -24,7 +24,9 @@ TTA_TRANSFORMS = [
 ]
 
 
-def mask_to_submission_rows(image_id: str, mask: np.ndarray, min_pixels: int = 10) -> list[dict[str, str]]:
+def mask_to_submission_rows(
+    image_id: str, mask: np.ndarray, min_pixels: int = 10
+) -> list[dict[str, str]]:
     """Split a binary mask into per-ship RLE rows using connected components."""
     num_labels, labels = cv2.connectedComponents(mask)
     rows: list[dict[str, str]] = []
@@ -139,9 +141,7 @@ class ShipPredictor:
         pixel_values = pixel_values.to(self.device)
 
         if self.use_tta:
-            avg_probs = torch.zeros_like(
-                self.model(pixel_values), dtype=torch.float32
-            )
+            avg_probs = torch.zeros_like(self.model(pixel_values), dtype=torch.float32)
             for _name, forward_aug, reverse_aug in TTA_TRANSFORMS:
                 augmented = forward_aug(pixel_values)
                 logits = self.model(augmented)
@@ -171,7 +171,9 @@ class ShipPredictor:
             pin_memory=self.device.type != "cpu",
         )
 
-    def generate_submission(self, image_dir: Path, batch_size: int = 32, num_workers: int = 4) -> pd.DataFrame:
+    def generate_submission(
+        self, image_dir: Path, batch_size: int = 32, num_workers: int = 4
+    ) -> pd.DataFrame:
         """Run inference on all images and produce a Kaggle submission DataFrame."""
         loader = self.build_dataloader(image_dir, batch_size, num_workers)
         rows: list[dict[str, str]] = []
@@ -195,7 +197,13 @@ class ShipPredictor:
 
         return pd.DataFrame(rows, columns=["ImageId", "EncodedPixels"])
 
-    def save_masks(self, image_dir: Path, output_dir: Path, batch_size: int = 32, num_workers: int = 4) -> None:
+    def save_masks(
+        self,
+        image_dir: Path,
+        output_dir: Path,
+        batch_size: int = 32,
+        num_workers: int = 4,
+    ) -> None:
         """Run inference and save predicted masks as PNG images."""
 
         output_dir = Path(output_dir)
@@ -209,4 +217,6 @@ class ShipPredictor:
 
             for i, image_id in enumerate(image_ids):
                 mask_np = masks[i, 0].cpu().numpy() * 255
-                cv2.imwrite(str(output_dir / f"{Path(image_id).stem}_mask.png"), mask_np)
+                cv2.imwrite(
+                    str(output_dir / f"{Path(image_id).stem}_mask.png"), mask_np
+                )

@@ -232,8 +232,12 @@ class TestBCELovaszLoss:
         targets = torch.ones(2, 1, 8, 8)
 
         loss_equal = BCELovaszLoss(bce_weight=0.5, lovasz_weight=0.5)(logits, targets)
-        loss_bce_heavy = BCELovaszLoss(bce_weight=5.0, lovasz_weight=0.1)(logits, targets)
-        loss_lovasz_heavy = BCELovaszLoss(bce_weight=0.1, lovasz_weight=5.0)(logits, targets)
+        loss_bce_heavy = BCELovaszLoss(bce_weight=5.0, lovasz_weight=0.1)(
+            logits, targets
+        )
+        loss_lovasz_heavy = BCELovaszLoss(bce_weight=0.1, lovasz_weight=5.0)(
+            logits, targets
+        )
 
         assert loss_equal.item() != pytest.approx(loss_bce_heavy.item(), abs=1e-4)
         assert loss_equal.item() != pytest.approx(loss_lovasz_heavy.item(), abs=1e-4)

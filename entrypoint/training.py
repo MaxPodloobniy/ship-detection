@@ -1,13 +1,3 @@
-"""Entry point for model training.
-
-Usage:
-    python -m entrypoint.training \
-        --data-dir ./data \
-        --epochs 30 \
-        --batch-size 16 \
-        --lr 1e-4
-"""
-
 import argparse
 from pathlib import Path
 
@@ -24,9 +14,7 @@ from src.training.trainer import ShipSegmentationModule
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Train FPN for Airbus Ship Detection",
-    )
+    parser = argparse.ArgumentParser(description="Train FPN for Airbus Ship Detection")
 
     # ── data ──────────────────────────────────────────────────────────
     parser.add_argument(
@@ -87,10 +75,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     # ── hardware ──────────────────────────────────────────────────────
     parser.add_argument(
-        "--accelerator",
-        type=str,
-        default="auto",
-        choices=["auto", "cpu", "gpu", "mps"],
+        "--accelerator", type=str, default="auto", choices=["auto", "cpu", "gpu", "mps"]
     )
     parser.add_argument("--devices", type=int, default=1)
     parser.add_argument("--precision", type=str, default="16-mixed")
