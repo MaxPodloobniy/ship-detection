@@ -86,8 +86,8 @@ jobs:
 
       - name: Download model from HuggingFace
         run: |
-          pip install huggingface_hub
-          huggingface-cli download ${{ vars.HF_MODEL_REPO }} model.onnx --local-dir .
+          pip install huggingface_hub[cli]
+          python -m huggingface_hub.commands.huggingface_cli download ${{ vars.HF_MODEL_REPO }} model.onnx --local-dir .
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
