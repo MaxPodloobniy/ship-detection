@@ -8,7 +8,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request
 
 from src.inference.onnx_predictor import OnnxShipPredictor
 
@@ -41,7 +41,7 @@ def create_app(
         return {"status": "ok"}, 200
 
     @app.route("/predict", methods=["POST"])
-    def predict() -> tuple[dict, int]:
+    def predict() -> tuple[dict, int] | Response:
         if "file" not in request.files:
             return {"error": "No file provided"}, 400
 
@@ -58,7 +58,7 @@ def create_app(
 
         overlay = _create_overlay(image, result["mask"])
         _, buffer = cv2.imencode(".png", overlay)
-        overlay_b64 = base64.b64encode(buffer).decode("utf-8")
+        overlay_b64 = base64.b64encode(buffer.tobytes()).decode("utf-8")
 
         return jsonify(
             {

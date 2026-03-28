@@ -26,10 +26,10 @@ TTA_TRANSFORMS = [
 
 def mask_to_submission_rows(
     image_id: str, mask: np.ndarray, min_pixels: int = 10
-) -> list[dict[str, str]]:
+) -> list[dict[str, str | float]]:
     """Split a binary mask into per-ship RLE rows using connected components."""
     num_labels, labels = cv2.connectedComponents(mask)
-    rows: list[dict[str, str]] = []
+    rows: list[dict[str, str | float]] = []
 
     for label_id in range(1, num_labels):
         component = (labels == label_id).astype(np.uint8)
@@ -176,7 +176,7 @@ class ShipPredictor:
     ) -> pd.DataFrame:
         """Run inference on all images and produce a Kaggle submission DataFrame."""
         loader = self.build_dataloader(image_dir, batch_size, num_workers)
-        rows: list[dict[str, str]] = []
+        rows: list[dict[str, str | float]] = []
 
         for batch in loader:
             _, masks = self.predict_batch(batch["pixel_values"])

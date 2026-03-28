@@ -11,14 +11,14 @@ class ShipSegmentationModule(lightning.LightningModule):
 
     Args:
         encoder_name: Encoder backbone name (timm-compatible).
-        encoder_weights: Pretrained weights identifier or ``None``.
+        encoder_weights: Pretrained weights identifier or None.
         lr: Learning rate for AdamW.
         bce_weight: Weight for the BCE component of the loss.
         dice_weight: Weight for the Dice component of the loss.
         lovasz_weight: Weight for the Lovász component of the loss.
         pos_weight: Optional positive-class weight for BCE (class imbalance).
-        loss_type: Loss function to use (``"bce_dice"`` or ``"bce_lovasz"``).
-        scheduler_type: LR scheduler (``"plateau"`` or ``"cosine"``).
+        loss_type: Loss function to use ("bce_dice" or "bce_lovasz").
+        scheduler_type: LR scheduler ("plateau" or "cosine").
     """
 
     def __init__(
@@ -43,6 +43,7 @@ class ShipSegmentationModule(lightning.LightningModule):
             classes=1,
         )
 
+        self.criterion: BCELovaszLoss | BCEDiceLoss
         if loss_type == "bce_lovasz":
             self.criterion = BCELovaszLoss(
                 bce_weight=bce_weight,
@@ -57,7 +58,7 @@ class ShipSegmentationModule(lightning.LightningModule):
             )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Return raw logits of shape ``(B, 1, H, W)``."""
+        """Return raw logits of shape (B, 1, H, W)."""
         return self.model(x)
 
     def _shared_step(self, batch: dict[str, torch.Tensor], stage: str) -> torch.Tensor:
@@ -103,6 +104,7 @@ class ShipSegmentationModule(lightning.LightningModule):
 
         scheduler_type = self.hparams.get("scheduler_type", "plateau")
 
+        scheduler: torch.optim.lr_scheduler.LRScheduler
         if scheduler_type == "cosine":
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 optimizer, T_max=self.trainer.max_epochs or 10

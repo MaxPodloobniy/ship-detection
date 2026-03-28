@@ -52,7 +52,7 @@ def export_to_onnx(
     dummy_input = torch.randn(1, 3, image_size, image_size)
     torch.onnx.export(
         model,
-        dummy_input,
+        (dummy_input,),
         str(output_path),
         input_names=["input"],
         output_names=["output"],
