@@ -92,11 +92,14 @@ button:disabled {
 
 .spinner {
     margin-top: 2rem;
-    display: flex;
     flex-direction: column;
     align-items: center;
     gap: 0.75rem;
     color: #94a3b8;
+}
+
+.spinner:not([hidden]) {
+    display: flex;
 }
 
 .spinner-circle {
