@@ -1,8 +1,4 @@
-"""ONNX Runtime predictor for ship segmentation.
-
-Lightweight inference without PyTorch — depends only on
-onnxruntime, numpy, opencv, and pillow.
-"""
+"""ONNX Runtime predictor for ship segmentation."""
 
 from __future__ import annotations
 
