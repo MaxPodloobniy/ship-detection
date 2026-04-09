@@ -18,4 +18,4 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 5000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "120", "src.web.app:get_app()"]
+CMD ["uvicorn", "src.web.app:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1"]
