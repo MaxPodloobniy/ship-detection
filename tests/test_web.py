@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 import segmentation_models_pytorch as smp
 import torch
+from fastapi.testclient import TestClient
 from PIL import Image
 
 from src.web.app import create_app
@@ -35,11 +36,10 @@ def onnx_model_path(tmp_path):
 
 @pytest.fixture()
 def client(onnx_model_path):
-    """Flask test client with a dummy ONNX model."""
+    """FastAPI test client with a dummy ONNX model."""
     app = create_app(model_path=onnx_model_path, image_size=256)
-    app.config["TESTING"] = True
-    with app.test_client() as client:
-        yield client
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 def _make_image_bytes(fmt: str = "JPEG", size: tuple[int, int] = (100, 100)) -> bytes:
@@ -58,36 +58,33 @@ class TestIndexRoute:
 
     def test_contains_html(self, client):
         response = client.get("/")
-        assert b"Ship Detection" in response.data
+        assert b"Ship Detection" in response.content
 
 
 class TestHealthRoute:
     def test_returns_ok(self, client):
         response = client.get("/health")
         assert response.status_code == 200
-        assert response.get_json()["status"] == "ok"
+        assert response.json()["status"] == "ok"
 
 
 class TestPredictRoute:
-    def test_no_file_returns_400(self, client):
+    def test_no_file_returns_422(self, client):
         response = client.post("/predict")
-        assert response.status_code == 400
+        assert response.status_code == 422
 
     def test_invalid_extension_returns_400(self, client):
-        data = {"file": (io.BytesIO(b"not an image"), "test.txt")}
-        response = client.post(
-            "/predict", data=data, content_type="multipart/form-data"
-        )
+        files = {"file": ("test.txt", io.BytesIO(b"not an image"), "text/plain")}
+        response = client.post("/predict", files=files)
         assert response.status_code == 400
+        assert "error" in response.json()
 
     def test_valid_jpeg_returns_result(self, client):
         img_bytes = _make_image_bytes("JPEG")
-        data = {"file": (io.BytesIO(img_bytes), "test.jpg")}
-        response = client.post(
-            "/predict", data=data, content_type="multipart/form-data"
-        )
+        files = {"file": ("test.jpg", io.BytesIO(img_bytes), "image/jpeg")}
+        response = client.post("/predict", files=files)
         assert response.status_code == 200
-        json_data = response.get_json()
+        json_data = response.json()
         assert "ship_count" in json_data
         assert "has_ships" in json_data
         assert "overlay" in json_data
@@ -95,22 +92,18 @@ class TestPredictRoute:
 
     def test_valid_png_returns_result(self, client):
         img_bytes = _make_image_bytes("PNG")
-        data = {"file": (io.BytesIO(img_bytes), "test.png")}
-        response = client.post(
-            "/predict", data=data, content_type="multipart/form-data"
-        )
+        files = {"file": ("test.png", io.BytesIO(img_bytes), "image/png")}
+        response = client.post("/predict", files=files)
         assert response.status_code == 200
-        json_data = response.get_json()
+        json_data = response.json()
         assert "ship_count" in json_data
 
     def test_overlay_is_base64(self, client):
         import base64
 
         img_bytes = _make_image_bytes("JPEG")
-        data = {"file": (io.BytesIO(img_bytes), "test.jpg")}
-        response = client.post(
-            "/predict", data=data, content_type="multipart/form-data"
-        )
-        json_data = response.get_json()
+        files = {"file": ("test.jpg", io.BytesIO(img_bytes), "image/jpeg")}
+        response = client.post("/predict", files=files)
+        json_data = response.json()
         decoded = base64.b64decode(json_data["overlay"])
         assert len(decoded) > 0
