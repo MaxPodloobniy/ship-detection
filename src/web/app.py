@@ -48,9 +48,7 @@ def create_app(
     async def http_exception_handler(
         request: Request, exc: HTTPException
     ) -> JSONResponse:
-        return JSONResponse(
-            status_code=exc.status_code, content={"error": exc.detail}
-        )
+        return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request) -> HTMLResponse:
