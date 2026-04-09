@@ -4,7 +4,7 @@ Semantic segmentation model that detects ships in satellite imagery. The project
 
 The core model is an FPN (Feature Pyramid Network) with a ResNet34 encoder, trained through several stages to reach **0.83 IoU** on validation. I also experimented with SegFormer, YOLOv11, and an ensemble approach, but FPN alone outperformed all alternatives.
 
-The trained model is converted to ONNX with FP16 quantization, wrapped in a Flask web app, and deployed to AWS with a full CI/CD pipeline.
+The trained model is converted to ONNX with FP16 quantization, wrapped in a FastAPI web app, and deployed to AWS with a full CI/CD pipeline.
 
 **[Try the live demo](https://ip-172-31-26-187.tail160214.ts.net/)** (sample images for testing are in the `photos/` directory)
 
@@ -66,7 +66,7 @@ I set up a GitHub Actions pipeline:
 
 - **Lint** — Ruff checks style and formatting
 - **Type check** — MyPy across the full codebase
-- **Tests** — pytest covering dataset loading, loss functions, RLE encoding, ONNX conversion, inference, and Flask routes
+- **Tests** — pytest covering dataset loading, loss functions, RLE encoding, ONNX conversion, inference, and FastAPI routes
 - **Docker build** — multi-architecture image (amd64 + arm64), pushed to GitHub Container Registry
 - **Smoke tests** — pulls the built image, starts a container, validates health and index endpoints
 
@@ -75,7 +75,7 @@ The production deployment runs on an AWS EC2 t4g.small ARM instance. The Docker 
 
 ### Web Application
 
-The frontend is a Flask app with a simple HTML/JS interface — upload a satellite image and get the ship count with a visual overlay of detected areas. The full web app code is in `src/web/`.
+The frontend is a FastAPI app with a simple HTML/JS interface — upload a satellite image and get the ship count with a visual overlay of detected areas. The full web app code is in `src/web/`.
 
 ---
 
@@ -85,7 +85,7 @@ The frontend is a Flask app with a simple HTML/JS interface — upload a satelli
 ├── src/
 │   ├── training/              # ShipDataset, data module, Lightning trainer, loss functions
 │   ├── inference/             # PyTorch predictor (TTA, submission CSV) + ONNX predictor
-│   ├── web/                   # Flask app, HTML template, CSS
+│   ├── web/                   # FastAPI app, HTML template, CSS
 │   └── utils.py               # RLE encode/decode
 │
 ├── entrypoint/                # CLI entry points for training and batch inference
@@ -95,7 +95,7 @@ The frontend is a Flask app with a simple HTML/JS interface — upload a satelli
 ├── Dockerfile
 ├── .github/workflows/ci.yml
 ├── requirements.txt           # Training: PyTorch, Lightning, SMP, Albumentations
-└── requirements-web.txt       # Inference: Flask, ONNX Runtime, OpenCV
+└── requirements-web.txt       # Inference: FastAPI, ONNX Runtime, OpenCV
 ```
 
 
@@ -105,7 +105,7 @@ The frontend is a Flask app with a simple HTML/JS interface — upload a satelli
 
 **Inference:** ONNX Runtime, OpenCV, NumPy
 
-**Web:** Flask, HTML/CSS, JavaScript
+**Web:** FastAPI, HTML/CSS, JavaScript
 
 **CI/CD:** GHA, Ruff, MyPy, pytest
 
