@@ -1,7 +1,7 @@
+import cv2
 import numpy as np
 import pandas as pd
 import torch
-from PIL import Image
 
 from src.training.dataset import ShipDataModule, ShipDataset
 from src.training.trainer import ShipSegmentationModule
@@ -9,7 +9,8 @@ from src.training.trainer import ShipSegmentationModule
 
 def _make_image(path, size=(768, 768), color=(128, 128, 128)):
     """Helper to create a test JPEG image."""
-    Image.new("RGB", size, color).save(path)
+    img = np.full((size[1], size[0], 3), color, dtype=np.uint8)
+    cv2.imwrite(str(path), img)
 
 
 class TestShipDataset:
@@ -99,7 +100,10 @@ class TestNegativeDownsampling:
 
         rows = []
         for i in range(10):
-            Image.new("RGB", (768, 768)).save(img_dir / f"img{i}.jpg")
+            cv2.imwrite(
+                str(img_dir / f"img{i}.jpg"),
+                np.zeros((768, 768, 3), dtype=np.uint8),
+            )
             if i < 2:
                 rows.append({"ImageId": f"img{i}.jpg", "EncodedPixels": "1 10"})
             else:

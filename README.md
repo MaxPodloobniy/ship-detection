@@ -54,7 +54,7 @@ YOLO + SegFormer ensemble — I combined the strengths of both: SegFormer genera
 
 ## Inference and ONNX
 
-For production I use the model in ONNX format with FP16 quantization, which cuts the size roughly in half without affecting prediction quality. The ONNX predictor (`src/inference/onnx_predictor.py`) depends only on `onnxruntime`, `numpy`, `opencv`, and `Pillow` — keeping the production image lightweight.
+For production I use the model in ONNX format with FP16 quantization, which cuts the size roughly in half without affecting prediction quality. The ONNX predictor (`src/inference/onnx_predictor.py`) depends only on `onnxruntime`, `numpy`, and `opencv` — keeping the production image lightweight.
 
 There is also a full PyTorch predictor with test-time augmentation and Kaggle submission CSV generation for evaluation purposes.
 

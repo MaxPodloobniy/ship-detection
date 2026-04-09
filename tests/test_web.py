@@ -1,11 +1,11 @@
 import io
 
+import cv2
 import numpy as np
 import pytest
 import segmentation_models_pytorch as smp
 import torch
 from fastapi.testclient import TestClient
-from PIL import Image
 
 from src.web.app import create_app
 
@@ -44,11 +44,10 @@ def client(onnx_model_path):
 
 def _make_image_bytes(fmt: str = "JPEG", size: tuple[int, int] = (100, 100)) -> bytes:
     """Create a test image as bytes."""
-    img = Image.fromarray(np.random.randint(0, 255, (*size, 3), dtype=np.uint8))
-    buf = io.BytesIO()
-    img.save(buf, format=fmt)
-    buf.seek(0)
-    return buf.read()
+    arr = np.random.randint(0, 255, (*size, 3), dtype=np.uint8)
+    ext = ".jpg" if fmt == "JPEG" else ".png"
+    _, buf = cv2.imencode(ext, arr)
+    return buf.tobytes()
 
 
 class TestIndexRoute:

@@ -1,8 +1,8 @@
+import cv2
 import lightning
 import numpy as np
 import pytest
 import torch
-from PIL import Image
 
 from src.inference.predictor import (
     InferenceImageDataset,
@@ -31,8 +31,9 @@ def dummy_checkpoint(tmp_path):
 
 class TestInferenceImageDataset:
     def test_getitem_shape_and_image_id(self, tmp_path):
-        Image.new("RGB", (768, 768)).save(tmp_path / "a.jpg")
-        Image.new("RGB", (768, 768)).save(tmp_path / "b.png")
+        blank = np.zeros((768, 768, 3), dtype=np.uint8)
+        cv2.imwrite(str(tmp_path / "a.jpg"), blank)
+        cv2.imwrite(str(tmp_path / "b.png"), blank)
 
         ds = InferenceImageDataset(tmp_path)
         assert len(ds) == 2
@@ -69,8 +70,9 @@ class TestShipPredictor:
     def test_generate_submission(self, tmp_path, dummy_checkpoint):
         img_dir = tmp_path / "images"
         img_dir.mkdir()
+        blank = np.zeros((768, 768, 3), dtype=np.uint8)
         for name in ["img1.jpg", "img2.jpg"]:
-            Image.new("RGB", (768, 768)).save(img_dir / name)
+            cv2.imwrite(str(img_dir / name), blank)
 
         predictor = ShipPredictor(
             dummy_checkpoint, device="cpu", encoder_name="resnet34"
