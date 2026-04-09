@@ -28,5 +28,5 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 5000
 
-ENTRYPOINT ["uvicorn", "src.web.app:app", "--host", "0.0.0.0", "--port", "5000"]
+ENTRYPOINT ["uvicorn", "src.web.app:app", "--host", "0.0.0.0", "--port", "5000", "--proxy-headers", "--forwarded-allow-ips", "*"]
 CMD ["--workers", "1"]
